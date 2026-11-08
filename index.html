@@ -1,0 +1,1189 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Cùng Chung S?c - Bé Vui Ghép Tranh</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@700;800&family=Nunito:wght@800;900&display=swap" rel="stylesheet">
+  <style>
+    * {
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+      touch-action: none;
+      box-sizing: border-box;
+    }
+    html, body {
+      width: 100vw;
+      height: 100vh;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      font-family: 'Comfortaa', cursive, 'Nunito', sans-serif;
+      background: radial-gradient(circle at 50% 30%, #FFFDF0 0%, #FFF3E0 55%, #E0F2FE 100%);
+    }
+
+    /* Nút b?m 3D n?i b?t phong cách m?m non */
+    .btn-bubbly {
+      transition: transform 0.12s ease, filter 0.12s ease;
+      box-shadow: 0 4px 0 rgba(0, 0, 0, 0.16), 0 6px 12px rgba(0,0,0,0.08);
+    }
+    .btn-bubbly:hover {
+      transform: translateY(-2px);
+      filter: brightness(1.05);
+    }
+    .btn-bubbly:active {
+      transform: translateY(3px);
+      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+    }
+
+    /* H?p ch?a 16:9 có vi?n s?c nét */
+    .frame-box {
+      border: 6px solid #FFFFFF;
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.16), inset 0 2px 6px rgba(0, 0, 0, 0.08);
+      position: relative;
+      border-radius: 24px;
+      overflow: hidden;
+    }
+
+    /* Các ô trong khung ghép dích */
+    .target-slot {
+      border: 2px dashed rgba(239, 68, 68, 0.45);
+      background: rgba(255, 255, 255, 0.2);
+      position: relative;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+    .target-slot.slot-hover {
+      background: rgba(254, 202, 202, 0.85) !important;
+      border: 3px solid #DC2626 !important;
+    }
+
+    /* Các ô trong khay ch?a m?nh ghép */
+    .tray-slot {
+      border: 2px dashed rgba(14, 165, 233, 0.45);
+      background: rgba(240, 249, 255, 0.75);
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+    }
+
+    /* Canvas t?ng m?nh ghép */
+    .puzzle-piece {
+      width: 100%;
+      height: 100%;
+      display: block;
+      cursor: grab;
+      border-radius: 6px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+      border: 2px solid #FFFFFF;
+      transition: transform 0.15s ease;
+    }
+    .puzzle-piece:hover {
+      transform: scale(1.02);
+    }
+    .puzzle-piece.dragging {
+      cursor: grabbing;
+      z-index: 99999 !important;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4) !important;
+      border: 3px solid #FBBF24 !important;
+      transform: scale(1.05) rotate(2deg) !important;
+      pointer-events: none;
+    }
+    .puzzle-piece.locked {
+      cursor: default;
+      border: none !important;
+      box-shadow: none !important;
+      transform: none !important;
+      pointer-events: none;
+    }
+
+    @keyframes popIn {
+      0% { transform: scale(0.4); opacity: 0; }
+      80% { transform: scale(1.06); opacity: 1; }
+      100% { transform: scale(1); }
+    }
+    .pop-in {
+      animation: popIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    }
+  </style>
+</head>
+<body class="w-screen h-screen m-0 p-0 overflow-hidden flex flex-col justify-between select-none">
+
+  <!-- 1. HEADER C?C G?N (34px) -->
+  <header class="w-full h-[36px] px-4 flex items-center justify-between z-20 shrink-0 bg-white/75 backdrop-blur-sm border-b border-amber-200">
+    <div class="flex items-center gap-2">
+      <span class="text-xl">??</span>
+      <h1 class="text-sm md:text-base font-black text-red-600 tracking-wide uppercase">Cùng Chung S?c</h1>
+    </div>
+
+    <!-- Thanh ti?n d? ghép -->
+    <div class="flex items-center gap-2 bg-amber-50 px-3 py-0.5 rounded-full border border-amber-300">
+      <span class="text-xs font-bold text-amber-900">Ti?n d?:</span>
+      <div class="w-24 md:w-36 h-2.5 bg-amber-200 rounded-full overflow-hidden">
+        <div id="progressBar" class="h-full bg-gradient-to-r from-amber-500 to-emerald-500 rounded-full transition-all duration-300" style="width: 0%"></div>
+      </div>
+      <span id="progressText" class="text-xs font-black text-emerald-700 min-w-[38px] text-right">0 / 6</span>
+    </div>
+  </header>
+
+  <!-- 2. KHU V?C CHOI NGANG KH?NG L? (CHI?M TR?N 92-95% DI?N TÍCH) -->
+  <main id="gameArea" class="w-full flex-1 flex flex-row items-center justify-center gap-4 px-3 py-1 overflow-hidden z-10 min-h-0">
+    
+    <!-- C?T TRÁI: KHUNG GHÉP ÐÍCH (16:9) -->
+    <section class="flex items-center justify-center h-full">
+      <div id="boardWrapper" class="frame-box bg-gradient-to-br from-red-500 via-rose-400 to-amber-400 p-1 flex items-center justify-center">
+        <div class="relative w-full h-full bg-white rounded-[18px] overflow-hidden">
+          <!-- ?nh n?n m? 20% bên du?i d? d?nh v? ô -->
+          <canvas id="bgGuideCanvas" class="absolute inset-0 w-full h-full object-cover opacity-20 pointer-events-none"></canvas>
+          <!-- Lu?i các ô dích -->
+          <div id="boardGrid" class="absolute inset-0 grid w-full h-full z-10"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- C?T PH?I: KHAY CH?A M?NH GHÉP (16:9 TUONG ÐUONG, TO RÕ Ð?Y Ð? 100%) -->
+    <section class="flex items-center justify-center h-full">
+      <div id="trayWrapper" class="frame-box bg-gradient-to-br from-sky-400 via-cyan-300 to-blue-400 p-1 flex items-center justify-center">
+        <!-- Khay lu?i ch?a t?t c? m?nh ghép ngan n?p -->
+        <div id="trayGrid" class="w-full h-full bg-white/95 rounded-[18px] p-1.5 grid gap-1.5 overflow-hidden"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- 3. THANH ÐI?U KHI?N SÁT ÐÁY (42px) -->
+  <footer class="w-full h-[44px] px-3 flex items-center justify-between z-30 shrink-0 bg-white/80 backdrop-blur-md border-t border-amber-200">
+    <div class="text-[11px] font-bold text-slate-500 hidden lg:block">
+      ?? Giao di?n ngang siêu to • Ch?m vu?t c?c nh?y trên iPad/màn hình c?m ?ng
+    </div>
+
+    <div class="flex items-center gap-1.5 sm:gap-2 ml-auto">
+      <!-- Nút Ð?i ?nh -->
+      <label class="btn-bubbly cursor-pointer bg-gradient-to-b from-pink-400 to-rose-500 text-white font-black text-xs px-2.5 py-1 rounded-xl flex items-center gap-1 border border-white">
+        <span>??? Ð?i ?nh</span>
+        <input type="file" id="imageInput" accept="image/*" class="hidden">
+      </label>
+
+      <!-- Ch?n s? m?nh -->
+      <div class="relative">
+        <select id="gridModeSelect" class="btn-bubbly cursor-pointer bg-gradient-to-b from-amber-400 to-yellow-500 text-amber-950 font-black text-xs px-2.5 py-1 rounded-xl border border-white appearance-none pr-5">
+          <option value="2x3">6 M?nh (2x3)</option>
+          <option value="2x4">8 M?nh (2x4)</option>
+          <option value="3x3">9 M?nh (3x3)</option>
+        </select>
+        <div class="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-[8px] font-black text-amber-950">?</div>
+      </div>
+
+      <!-- Nút Choi l?i -->
+      <button id="btnRestart" class="btn-bubbly bg-gradient-to-b from-emerald-400 to-teal-500 text-white font-black text-xs px-2.5 py-1 rounded-xl flex items-center gap-1 border border-white">
+        <span>?? Choi L?i</span>
+      </button>
+
+      <!-- Nút Nh?c N?n Sôi Ð?ng -->
+      <button id="btnBgmToggle" class="btn-bubbly bg-gradient-to-b from-pink-400 to-rose-500 text-white font-black text-xs px-2.5 py-1 rounded-xl flex items-center gap-1 border border-white">
+        <span id="bgmIcon">?? Nh?c: B?t</span>
+      </button>
+
+      <!-- Nút Toàn Màn Hình -->
+      <button id="btnFullscreen" class="btn-bubbly bg-gradient-to-b from-cyan-400 to-blue-500 text-white font-black text-xs px-2.5 py-1 rounded-xl flex items-center gap-1 border border-white">
+        <span id="fsIcon">? Toàn Màn Hình</span>
+      </button>
+
+      <!-- Nút Âm Thanh FX -->
+      <button id="btnSoundToggle" class="btn-bubbly bg-gradient-to-b from-purple-400 to-indigo-500 text-white font-black text-xs px-2 py-1 rounded-xl flex items-center justify-center border border-white">
+        <span id="soundIcon">??</span>
+      </button>
+    </div>
+  </footer>
+
+  <!-- POPUP CHÚC M?NG HOÀN THÀNH -->
+  <div id="winModal" class="fixed inset-0 bg-black/45 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-opacity duration-300 p-4">
+    <div class="bg-gradient-to-b from-amber-50 via-white to-amber-100 rounded-[32px] border-8 border-amber-300 p-5 sm:p-7 max-w-md w-full text-center shadow-2xl relative pop-in">
+      <div class="text-6xl mb-2 animate-bounce">??</div>
+      <h2 class="text-xl sm:text-2xl font-black text-red-600 mb-1 tracking-wide uppercase">B?N CHOI GI?I QUÁ!</h2>
+      <p class="text-sm sm:text-base font-extrabold text-emerald-600 mb-4 leading-snug">Xin chúc m?ng các b?n dã cùng chung s?c hoàn thành b?c tranh!</p>
+
+      <div class="w-full aspect-video bg-amber-50 rounded-2xl overflow-hidden border-4 border-amber-200 mb-4 shadow-inner flex items-center justify-center">
+        <canvas id="winPreviewCanvas" class="w-full h-full object-cover"></canvas>
+      </div>
+
+      <button id="btnPlayAgain" class="btn-bubbly w-full bg-gradient-to-r from-red-500 via-amber-500 to-yellow-400 text-white font-black text-base sm:text-lg py-2.5 rounded-2xl shadow-lg border-2 border-white">
+        ?? Choi Vòng M?i Thôi
+      </button>
+    </div>
+  </div>
+
+  <!-- CANVAS PHÁO HOA -->
+  <canvas id="fireworksCanvas" class="fixed inset-0 pointer-events-none z-40 hidden"></canvas>
+
+  <script>
+    /* ====================================================================
+       1. H? TH?NG ÂM THANH THU?N WEB AUDIO API (KHÔNG FILE NGOÀI, KHÔNG GI?NG NÓI MÁY)
+       ==================================================================== */
+    class SoundSystem {
+      constructor() {
+        this.ctx = null;
+        this.fxEnabled = true;
+        this.bgmEnabled = true;
+        this.bgmTimer = null;
+        this.step = 0;
+      }
+      init() {
+        if (!this.ctx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtx) this.ctx = new AudioCtx();
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+        if (this.bgmEnabled && !this.bgmTimer) {
+          this.startBgm();
+        }
+      }
+      startBgm() {
+        if (!this.ctx || this.bgmTimer) return;
+        // Ði?u nh?c m?m non tuoi t?n, r?n ràng
+        const melody = [
+          261.63, 329.63, 392.00, 523.25, 392.00, 329.63,
+          293.66, 349.23, 440.00, 587.33, 440.00, 349.23,
+          329.63, 392.00, 523.25, 659.25, 523.25, 392.00,
+          392.00, 349.23, 329.63, 293.66, 261.63, 0
+        ];
+        const bassNotes = [130.81, 130.81, 146.83, 146.83, 164.81, 164.81, 196.00, 130.81];
+
+        this.bgmTimer = setInterval(() => {
+          if (!this.bgmEnabled || !this.ctx || this.ctx.state !== 'running') return;
+          const t = this.ctx.currentTime;
+          const freq = melody[this.step % melody.length];
+          const bass = bassNotes[Math.floor(this.step / 3) % bassNotes.length];
+
+          if (freq > 0) {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, t);
+            gain.gain.setValueAtTime(0.07, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(t);
+            osc.stop(t + 0.16);
+          }
+
+          if (this.step % 2 === 0) {
+            const bOsc = this.ctx.createOscillator();
+            const bGain = this.ctx.createGain();
+            bOsc.type = 'sine';
+            bOsc.frequency.setValueAtTime(bass, t);
+            bGain.gain.setValueAtTime(0.1, t);
+            bGain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+            bOsc.connect(bGain);
+            bGain.connect(this.ctx.destination);
+            bOsc.start(t);
+            bOsc.stop(t + 0.19);
+          }
+          this.step++;
+        }, 180);
+      }
+      stopBgm() {
+        if (this.bgmTimer) {
+          clearInterval(this.bgmTimer);
+          this.bgmTimer = null;
+        }
+      }
+      playPickup() {
+        if (!this.fxEnabled) return;
+        this.init();
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        const t = this.ctx.currentTime;
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(340, t);
+        osc.frequency.exponentialRampToValueAtTime(700, t + 0.08);
+        gain.gain.setValueAtTime(0.18, t);
+        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.08);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(t);
+        osc.stop(t + 0.09);
+      }
+      playSnap() {
+        if (!this.fxEnabled) return;
+        this.init();
+        if (!this.ctx) return;
+        const t = this.ctx.currentTime;
+        const notes = [523.25, 659.25, 783.99, 1046.50];
+        notes.forEach((f, idx) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          const start = t + idx * 0.05;
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(f, start);
+          gain.gain.setValueAtTime(0.24, start);
+          gain.gain.exponentialRampToValueAtTime(0.001, start + 0.22);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(start);
+          osc.stop(start + 0.23);
+        });
+      }
+      playWrong() {
+        if (!this.fxEnabled) return;
+        this.init();
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        const t = this.ctx.currentTime;
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(280, t);
+        osc.frequency.exponentialRampToValueAtTime(130, t + 0.16);
+        gain.gain.setValueAtTime(0.18, t);
+        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.16);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(t);
+        osc.stop(t + 0.17);
+      }
+      playVictory() {
+        if (!this.fxEnabled) return;
+        this.init();
+        if (!this.ctx) return;
+        const notes = [
+          { f: 523.25, d: 0.12 },
+          { f: 659.25, d: 0.12 },
+          { f: 783.99, d: 0.14 },
+          { f: 1046.50, d: 0.28 },
+          { f: 880.00, d: 0.14 },
+          { f: 1046.50, d: 0.5 }
+        ];
+        let cur = this.ctx.currentTime + 0.05;
+        notes.forEach(n => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(n.f, cur);
+          gain.gain.setValueAtTime(0.3, cur);
+          gain.gain.exponentialRampToValueAtTime(0.001, cur + n.d);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(cur);
+          osc.stop(cur + n.d);
+          cur += n.d + 0.03;
+        });
+      }
+    }
+    const audio = new SoundSystem();
+
+    function unlockAudio() {
+      audio.init();
+      window.removeEventListener('pointerdown', unlockAudio);
+      window.removeEventListener('keydown', unlockAudio);
+    }
+    window.addEventListener('pointerdown', unlockAudio, { once: true });
+    window.addEventListener('keydown', unlockAudio, { once: true });
+
+    /* ====================================================================
+       2. V? TRANH B?P ?M ÁP: CHI?C N?I SÚP Ð? & B?N CÀ CHUA (16:9)
+       ==================================================================== */
+    const masterCanvas = document.createElement('canvas');
+    masterCanvas.width = 1280;
+    masterCanvas.height = 720; // 16:9 s?c nét cao
+    const mCtx = masterCanvas.getContext('2d');
+
+    function drawDefaultPotArtwork() {
+      const w = masterCanvas.width;
+      const h = masterCanvas.height;
+
+      // N?n tu?ng b?p
+      const bgGrad = mCtx.createLinearGradient(0, 0, 0, h);
+      bgGrad.addColorStop(0, '#FFFDF0');
+      bgGrad.addColorStop(0.65, '#FEF3C7');
+      bgGrad.addColorStop(1, '#FDE68A');
+      mCtx.fillStyle = bgGrad;
+      mCtx.fillRect(0, 0, w, h);
+
+      // G?ch ?p tu?ng nh?
+      mCtx.strokeStyle = 'rgba(217, 119, 6, 0.12)';
+      mCtx.lineWidth = 3;
+      for (let y = 60; y < 500; y += 75) {
+        mCtx.beginPath();
+        mCtx.moveTo(0, y);
+        mCtx.lineTo(w, y);
+        mCtx.stroke();
+      }
+      for (let x = 60; x < w; x += 130) {
+        mCtx.beginPath();
+        mCtx.moveTo(x, 0);
+        mCtx.lineTo(x, 500);
+        mCtx.stroke();
+      }
+
+      // K? gia v? bên ph?i
+      mCtx.fillStyle = '#D97706';
+      mCtx.fillRect(960, 150, 320, 18);
+      mCtx.fillStyle = '#B45309';
+      mCtx.fillRect(980, 168, 20, 40);
+      mCtx.fillRect(1220, 168, 20, 40);
+
+      // L? gia v?
+      mCtx.fillStyle = 'rgba(255,255,255,0.8)';
+      mCtx.strokeStyle = '#78350F';
+      mCtx.lineWidth = 3;
+      mCtx.fillRect(1000, 90, 45, 60);
+      mCtx.strokeRect(1000, 90, 45, 60);
+      mCtx.fillRect(1060, 105, 50, 45);
+      mCtx.strokeRect(1060, 105, 50, 45);
+
+      // C?a s? bên trái
+      mCtx.save();
+      mCtx.fillStyle = '#E0F2FE';
+      mCtx.fillRect(40, 60, 230, 360);
+      mCtx.strokeStyle = '#D97706';
+      mCtx.lineWidth = 10;
+      mCtx.strokeRect(40, 60, 230, 360);
+      mCtx.beginPath();
+      mCtx.moveTo(155, 60);
+      mCtx.lineTo(155, 420);
+      mCtx.moveTo(40, 240);
+      mCtx.lineTo(270, 240);
+      mCtx.stroke();
+      mCtx.restore();
+
+      // V?t n?ng
+      mCtx.save();
+      const sunGrad = mCtx.createLinearGradient(155, 150, 750, 720);
+      sunGrad.addColorStop(0, 'rgba(255, 255, 255, 0.45)');
+      sunGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      mCtx.fillStyle = sunGrad;
+      mCtx.beginPath();
+      mCtx.moveTo(155, 60);
+      mCtx.lineTo(780, 720);
+      mCtx.lineTo(420, 720);
+      mCtx.lineTo(40, 240);
+      mCtx.closePath();
+      mCtx.fill();
+      mCtx.restore();
+
+      // M?t bàn g? ?m
+      const woodGrad = mCtx.createLinearGradient(0, 490, 0, h);
+      woodGrad.addColorStop(0, '#F59E0B');
+      woodGrad.addColorStop(0.15, '#D97706');
+      woodGrad.addColorStop(1, '#92400E');
+      mCtx.fillStyle = woodGrad;
+      mCtx.fillRect(0, 490, w, 230);
+      mCtx.fillStyle = '#B45309';
+      mCtx.fillRect(0, 490, w, 10);
+
+      // Th?t g? bên trái
+      mCtx.save();
+      mCtx.translate(140, 560);
+      mCtx.fillStyle = '#DEB887';
+      mCtx.strokeStyle = '#8B4513';
+      mCtx.lineWidth = 4;
+      mCtx.beginPath();
+      mCtx.roundRect(0, 0, 160, 95, 14);
+      mCtx.fill();
+      mCtx.stroke();
+      mCtx.fillRect(-35, 30, 38, 26);
+      mCtx.strokeRect(-35, 30, 38, 26);
+      // Lá húng qu?
+      mCtx.fillStyle = '#22C55E';
+      mCtx.beginPath();
+      mCtx.ellipse(80, 48, 26, 12, 0.3, 0, Math.PI * 2);
+      mCtx.fill();
+      mCtx.stroke();
+      mCtx.restore();
+
+      // Hu r?c tiêu
+      mCtx.save();
+      mCtx.translate(45, 545);
+      mCtx.fillStyle = 'rgba(255,255,255,0.85)';
+      mCtx.strokeStyle = '#475569';
+      mCtx.lineWidth = 4;
+      mCtx.beginPath();
+      mCtx.roundRect(0, 0, 52, 95, 12);
+      mCtx.fill();
+      mCtx.stroke();
+      mCtx.fillStyle = '#CBD5E1';
+      mCtx.fillRect(6, -16, 40, 17);
+      mCtx.strokeRect(6, -16, 40, 17);
+      mCtx.restore();
+
+      // CHI?C N?I SÚP Ð?
+      mCtx.save();
+      mCtx.translate(640, 480);
+
+      // Thân n?i
+      mCtx.beginPath();
+      mCtx.roundRect(-220, -170, 440, 275, [10, 10, 95, 95]);
+      const potGrad = mCtx.createLinearGradient(-220, 0, 220, 0);
+      potGrad.addColorStop(0, '#DC2626');
+      potGrad.addColorStop(0.3, '#EF4444');
+      potGrad.addColorStop(0.7, '#F87171');
+      potGrad.addColorStop(1, '#B91C1C');
+      mCtx.fillStyle = potGrad;
+      mCtx.fill();
+      mCtx.lineWidth = 9;
+      mCtx.strokeStyle = '#450A0A';
+      mCtx.stroke();
+
+      // Quai n?i
+      function drawHandle(side) {
+        mCtx.save();
+        mCtx.scale(side, 1);
+        mCtx.beginPath();
+        mCtx.arc(220, -60, 42, -Math.PI / 2, Math.PI / 2, false);
+        mCtx.lineWidth = 26;
+        mCtx.strokeStyle = '#450A0A';
+        mCtx.stroke();
+        mCtx.lineWidth = 15;
+        mCtx.strokeStyle = '#EF4444';
+        mCtx.stroke();
+        mCtx.restore();
+      }
+      drawHandle(1);
+      drawHandle(-1);
+
+      // Mi?ng n?i
+      mCtx.beginPath();
+      mCtx.ellipse(0, -170, 225, 36, 0, 0, Math.PI * 2);
+      mCtx.fillStyle = '#F3F4F6';
+      mCtx.fill();
+      mCtx.lineWidth = 8;
+      mCtx.strokeStyle = '#450A0A';
+      mCtx.stroke();
+
+      // Nu?c súp sôi
+      mCtx.beginPath();
+      mCtx.ellipse(0, -166, 205, 28, 0, 0, Math.PI * 2);
+      mCtx.fillStyle = '#F59E0B';
+      mCtx.fill();
+
+      // Rau c? trong súp
+      mCtx.fillStyle = '#EA580C';
+      mCtx.beginPath();
+      mCtx.arc(-80, -166, 9, 0, Math.PI * 2);
+      mCtx.arc(60, -170, 10, 0, Math.PI * 2);
+      mCtx.arc(110, -162, 8, 0, Math.PI * 2);
+      mCtx.fill();
+
+      // N?p vung hé m?
+      mCtx.save();
+      mCtx.translate(35, -220);
+      mCtx.rotate(-0.22);
+      mCtx.beginPath();
+      mCtx.ellipse(0, 0, 215, 38, 0, 0, Math.PI * 2);
+      mCtx.fillStyle = '#EF4444';
+      mCtx.fill();
+      mCtx.lineWidth = 8;
+      mCtx.strokeStyle = '#450A0A';
+      mCtx.stroke();
+      mCtx.beginPath();
+      mCtx.arc(0, -32, 28, 0, Math.PI * 2);
+      mCtx.fillStyle = '#E5E7EB';
+      mCtx.fill();
+      mCtx.stroke();
+      mCtx.restore();
+
+      // M?t to tròn long lanh
+      function drawEye(ex, ey) {
+        mCtx.beginPath();
+        mCtx.arc(ex, ey, 24, 0, Math.PI * 2);
+        mCtx.fillStyle = '#1E1B4B';
+        mCtx.fill();
+        mCtx.beginPath();
+        mCtx.arc(ex - 8, ey - 7, 9, 0, Math.PI * 2);
+        mCtx.fillStyle = '#FFFFFF';
+        mCtx.fill();
+        mCtx.beginPath();
+        mCtx.arc(ex + 5, ey + 7, 4, 0, Math.PI * 2);
+        mCtx.fill();
+      }
+      drawEye(-80, -20);
+      drawEye(80, -20);
+
+      // Ðôi má h?ng
+      mCtx.fillStyle = 'rgba(254, 205, 211, 0.85)';
+      mCtx.beginPath();
+      mCtx.ellipse(-120, 16, 24, 15, 0, 0, Math.PI * 2);
+      mCtx.fill();
+      mCtx.beginPath();
+      mCtx.ellipse(120, 16, 24, 15, 0, 0, Math.PI * 2);
+      mCtx.fill();
+
+      // Mi?ng cu?i toe toét
+      mCtx.beginPath();
+      mCtx.arc(0, 8, 32, 0.15, Math.PI - 0.15, false);
+      mCtx.lineWidth = 7;
+      mCtx.strokeStyle = '#450A0A';
+      mCtx.fillStyle = '#BE123C';
+      mCtx.stroke();
+      mCtx.fill();
+      mCtx.restore();
+
+      // B?N CÀ CHUA & HÀNH LÁ BÊN PH?I
+      mCtx.save();
+      mCtx.translate(1080, 580);
+
+      mCtx.strokeStyle = '#15803D';
+      mCtx.lineWidth = 8;
+      mCtx.beginPath();
+      mCtx.moveTo(-85, 30);
+      mCtx.quadraticCurveTo(20, -50, 120, -70);
+      mCtx.stroke();
+      mCtx.beginPath();
+      mCtx.moveTo(-80, 40);
+      mCtx.quadraticCurveTo(40, -35, 140, -40);
+      mCtx.stroke();
+
+      mCtx.beginPath();
+      mCtx.arc(0, 0, 56, 0, Math.PI * 2);
+      mCtx.fillStyle = '#EF4444';
+      mCtx.fill();
+      mCtx.lineWidth = 6;
+      mCtx.strokeStyle = '#450A0A';
+      mCtx.stroke();
+
+      // Tai lá cà chua
+      mCtx.fillStyle = '#22C55E';
+      for (let a = 0; a < 5; a++) {
+        const ang = (Math.PI * 2 / 5) * a - Math.PI / 2;
+        mCtx.beginPath();
+        mCtx.ellipse(Math.cos(ang) * 20, -45 + Math.sin(ang) * 12, 14, 7, ang, 0, Math.PI * 2);
+        mCtx.fill();
+      }
+
+      // M?t & mi?ng cà chua
+      mCtx.fillStyle = '#18181B';
+      mCtx.beginPath();
+      mCtx.arc(-18, -4, 7, 0, Math.PI * 2);
+      mCtx.arc(18, -4, 7, 0, Math.PI * 2);
+      mCtx.fill();
+      mCtx.fillStyle = '#FFF';
+      mCtx.beginPath();
+      mCtx.arc(-20, -6, 2.5, 0, Math.PI * 2);
+      mCtx.arc(16, -6, 2.5, 0, Math.PI * 2);
+      mCtx.fill();
+
+      mCtx.beginPath();
+      mCtx.arc(0, 10, 11, 0, Math.PI, false);
+      mCtx.lineWidth = 3.5;
+      mCtx.strokeStyle = '#450A0A';
+      mCtx.stroke();
+      mCtx.restore();
+
+      // N?t nh?c b?c lên t? n?i
+      function drawNote(nx, ny) {
+        mCtx.save();
+        mCtx.translate(nx, ny);
+        mCtx.fillStyle = '#450A0A';
+        mCtx.beginPath();
+        mCtx.ellipse(0, 0, 11, 8, -0.3, 0, Math.PI * 2);
+        mCtx.fill();
+        mCtx.fillRect(8, -26, 4, 26);
+        mCtx.fillRect(8, -26, 15, 5);
+        mCtx.restore();
+      }
+      drawNote(870, 225);
+      drawNote(750, 125);
+
+      function drawHeart(hx, hy, s) {
+        mCtx.save();
+        mCtx.translate(hx, hy);
+        mCtx.scale(s, s);
+        mCtx.fillStyle = '#F43F5E';
+        mCtx.beginPath();
+        mCtx.moveTo(0, 0);
+        mCtx.bezierCurveTo(-12, -15, -25, 5, 0, 24);
+        mCtx.bezierCurveTo(25, 5, 12, -15, 0, 0);
+        mCtx.fill();
+        mCtx.restore();
+      }
+      drawHeart(530, 230, 1);
+      drawHeart(715, 190, 0.7);
+    }
+
+    drawDefaultPotArtwork();
+
+    /* ====================================================================
+       3. TÍNH TOÁN KÍCH THU?C Ð?NG B?NG JAVASCRIPT Ð? CHI?M TR?N 95% MÀN HÌNH
+       ==================================================================== */
+    const gameArea = document.getElementById('gameArea');
+    const boardWrapper = document.getElementById('boardWrapper');
+    const trayWrapper = document.getElementById('trayWrapper');
+    const boardGrid = document.getElementById('boardGrid');
+    const trayGrid = document.getElementById('trayGrid');
+    const bgGuideCanvas = document.getElementById('bgGuideCanvas');
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
+    const gridModeSelect = document.getElementById('gridModeSelect');
+    const btnRestart = document.getElementById('btnRestart');
+    const btnSoundToggle = document.getElementById('btnSoundToggle');
+    const soundIcon = document.getElementById('soundIcon');
+    const btnBgmToggle = document.getElementById('btnBgmToggle');
+    const bgmIcon = document.getElementById('bgmIcon');
+    const btnFullscreen = document.getElementById('btnFullscreen');
+    const fsIcon = document.getElementById('fsIcon');
+    const imageInput = document.getElementById('imageInput');
+    const winModal = document.getElementById('winModal');
+    const btnPlayAgain = document.getElementById('btnPlayAgain');
+    const winPreviewCanvas = document.getElementById('winPreviewCanvas');
+
+    let rows = 2;
+    let cols = 3;
+    let totalPieces = 6;
+    let lockedCount = 0;
+
+    // Tính toán kích thu?c 16:9 kh?ng l? cho c? hai bên trái ph?i
+    function updateResponsiveLayout() {
+      const areaW = gameArea.clientWidth;
+      const areaH = gameArea.clientHeight;
+
+      // Chi?u cao kh? d?ng t?i da cho m?i khung tranh (không còn ph?n ch? chi?m ch?)
+      const maxH = Math.max(areaH - 12, 160);
+      // Chi?u r?ng kh? d?ng cho m?i bên (chia dôi và tr? kho?ng cách 20px)
+      const maxW = Math.max((areaW - 36) / 2, 240);
+
+      // Tính kích thu?c theo t? l? 16:9
+      let boxW = maxW;
+      let boxH = boxW * (9 / 16);
+
+      if (boxH > maxH) {
+        boxH = maxH;
+        boxW = boxH * (16 / 9);
+      }
+
+      const finalW = Math.floor(boxW);
+      const finalH = Math.floor(boxH);
+
+      // C?p nh?t kích thu?c chu?n cho c? Khung Ghép và Khay Ch?a
+      boardWrapper.style.width = `${finalW}px`;
+      boardWrapper.style.height = `${finalH}px`;
+
+      trayWrapper.style.width = `${finalW}px`;
+      trayWrapper.style.height = `${finalH}px`;
+    }
+
+    window.addEventListener('resize', () => {
+      updateResponsiveLayout();
+      resizeFw();
+    });
+
+    /* ====================================================================
+       4. C?T ?NH VÀ XÁO TR?N M?NH GHÉP VÀO KHAY CH?A
+       ==================================================================== */
+    function updateMasterCanvases() {
+      bgGuideCanvas.width = masterCanvas.width;
+      bgGuideCanvas.height = masterCanvas.height;
+      const gCtx = bgGuideCanvas.getContext('2d');
+      gCtx.drawImage(masterCanvas, 0, 0);
+
+      winPreviewCanvas.width = masterCanvas.width;
+      winPreviewCanvas.height = masterCanvas.height;
+      const wCtx = winPreviewCanvas.getContext('2d');
+      wCtx.drawImage(masterCanvas, 0, 0);
+    }
+
+    function setupGame() {
+      const [r, c] = gridModeSelect.value.split('x').map(Number);
+      rows = r;
+      cols = c;
+      totalPieces = rows * cols;
+      lockedCount = 0;
+      updateProgress();
+
+      winModal.classList.add('hidden');
+      winModal.classList.add('opacity-0');
+
+      updateResponsiveLayout();
+      updateMasterCanvases();
+
+      boardGrid.innerHTML = '';
+      trayGrid.innerHTML = '';
+
+      boardGrid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+      boardGrid.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+
+      trayGrid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+      trayGrid.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+
+      // 1. T?o các ô dích trong Khung ghép
+      for (let i = 0; i < totalPieces; i++) {
+        const targetSlot = document.createElement('div');
+        targetSlot.className = 'target-slot w-full h-full';
+        targetSlot.dataset.index = i;
+        boardGrid.appendChild(targetSlot);
+      }
+
+      // 2. C?t Master Canvas thành t?ng Canvas con c?a m?nh ghép
+      const sliceW = masterCanvas.width / cols;
+      const sliceH = masterCanvas.height / rows;
+      const piecesList = [];
+
+      for (let rIdx = 0; rIdx < rows; rIdx++) {
+        for (let cIdx = 0; cIdx < cols; cIdx++) {
+          const pIndex = rIdx * cols + cIdx;
+
+          const pCanvas = document.createElement('canvas');
+          pCanvas.width = Math.round(sliceW);
+          pCanvas.height = Math.round(sliceH);
+          pCanvas.className = 'puzzle-piece';
+          pCanvas.dataset.index = pIndex;
+
+          const pCtx = pCanvas.getContext('2d');
+          pCtx.drawImage(
+            masterCanvas,
+            cIdx * sliceW, rIdx * sliceH, sliceW, sliceH,
+            0, 0, pCanvas.width, pCanvas.height
+          );
+
+          piecesList.push({
+            index: pIndex,
+            canvas: pCanvas
+          });
+        }
+      }
+
+      // 3. Xáo tr?n m?nh ghép và dua vào khay (M?i ô m?t m?nh, to rõ 100%)
+      const shuffled = [...piecesList].sort(() => Math.random() - 0.5);
+
+      shuffled.forEach((item, slotIdx) => {
+        const traySlot = document.createElement('div');
+        traySlot.className = 'tray-slot w-full h-full';
+        traySlot.dataset.slotIndex = slotIdx;
+
+        attachDragEvents(item.canvas, traySlot);
+
+        traySlot.appendChild(item.canvas);
+        trayGrid.appendChild(traySlot);
+      });
+    }
+
+    /* ====================================================================
+       5. KÉO TH? B?NG POINTER EVENTS (CHU?T & C?M ?NG IPAD SIÊU MU?T)
+       ==================================================================== */
+    let currentDrag = null;
+
+    function attachDragEvents(pieceCanvas, homeSlot) {
+      pieceCanvas.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0 && e.pointerType === 'mouse') return;
+        if (pieceCanvas.classList.contains('locked')) return;
+
+        audio.playPickup();
+
+        const rect = pieceCanvas.getBoundingClientRect();
+        currentDrag = {
+          element: pieceCanvas,
+          homeSlot: homeSlot,
+          targetIndex: parseInt(pieceCanvas.dataset.index, 10),
+          offsetX: e.clientX - rect.left,
+          offsetY: e.clientY - rect.top,
+          width: rect.width,
+          height: rect.height,
+          pointerId: e.pointerId
+        };
+
+        // Nh?c m?nh ghép bay t? do trên toàn màn hình
+        pieceCanvas.classList.add('dragging');
+        pieceCanvas.style.position = 'fixed';
+        pieceCanvas.style.width = `${rect.width}px`;
+        pieceCanvas.style.height = `${rect.height}px`;
+        pieceCanvas.style.left = `${rect.left}px`;
+        pieceCanvas.style.top = `${rect.top}px`;
+        document.body.appendChild(pieceCanvas);
+
+        pieceCanvas.setPointerCapture(e.pointerId);
+      });
+
+      pieceCanvas.addEventListener('pointermove', (e) => {
+        if (!currentDrag || currentDrag.element !== pieceCanvas) return;
+
+        const x = e.clientX - currentDrag.offsetX;
+        const y = e.clientY - currentDrag.offsetY;
+
+        pieceCanvas.style.left = `${x}px`;
+        pieceCanvas.style.top = `${y}px`;
+
+        highlightTargetSlot(e.clientX, e.clientY);
+      });
+
+      pieceCanvas.addEventListener('pointerup', (e) => {
+        if (!currentDrag || currentDrag.element !== pieceCanvas) return;
+        pieceCanvas.releasePointerCapture(e.pointerId);
+        finishDrop(e.clientX, e.clientY);
+      });
+
+      pieceCanvas.addEventListener('pointercancel', () => {
+        if (!currentDrag || currentDrag.element !== pieceCanvas) return;
+        revertToTray(currentDrag);
+        currentDrag = null;
+      });
+    }
+
+    function highlightTargetSlot(x, y) {
+      document.querySelectorAll('.target-slot').forEach(slot => {
+        slot.classList.remove('slot-hover');
+        if (slot.children.length > 0) return;
+        const r = slot.getBoundingClientRect();
+        if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) {
+          slot.classList.add('slot-hover');
+        }
+      });
+    }
+
+    function finishDrop(dropX, dropY) {
+      const drag = currentDrag;
+      const piece = drag.element;
+      piece.classList.remove('dragging');
+
+      let matchedSlot = null;
+      document.querySelectorAll('.target-slot').forEach(slot => {
+        slot.classList.remove('slot-hover');
+        const r = slot.getBoundingClientRect();
+        if (dropX >= r.left && dropX <= r.right && dropY >= r.top && dropY <= r.bottom) {
+          matchedSlot = slot;
+        }
+      });
+
+      const slotIdx = matchedSlot ? parseInt(matchedSlot.dataset.index, 10) : null;
+
+      // TH? ÐÚNG V? TRÍ
+      if (matchedSlot && slotIdx === drag.targetIndex && matchedSlot.children.length === 0) {
+        audio.playSnap();
+
+        const sRect = matchedSlot.getBoundingClientRect();
+        piece.style.transition = 'all 0.15s ease-out';
+        piece.style.left = `${sRect.left}px`;
+        piece.style.top = `${sRect.top}px`;
+        piece.style.width = `${sRect.width}px`;
+        piece.style.height = `${sRect.height}px`;
+
+        setTimeout(() => {
+          piece.classList.add('locked');
+          piece.style.position = 'static';
+          piece.style.width = '100%';
+          piece.style.height = '100%';
+          piece.style.borderRadius = '0';
+          piece.style.transition = 'none';
+
+          matchedSlot.appendChild(piece);
+          lockedCount++;
+          updateProgress();
+
+          if (lockedCount >= totalPieces) {
+            triggerVictory();
+          }
+        }, 150);
+      } else {
+        // TH? SAI HO?C RA NGOÀI -> TRU?T V? KHAY BAN Ð?U
+        audio.playWrong();
+        revertToTray(drag);
+      }
+
+      currentDrag = null;
+    }
+
+    function revertToTray(drag) {
+      const piece = drag.element;
+      const homeRect = drag.homeSlot.getBoundingClientRect();
+
+      piece.style.transition = 'all 0.25s cubic-bezier(0.2, 0.9, 0.3, 1)';
+      piece.style.left = `${homeRect.left}px`;
+      piece.style.top = `${homeRect.top}px`;
+      piece.style.width = `${homeRect.width}px`;
+      piece.style.height = `${homeRect.height}px`;
+
+      setTimeout(() => {
+        piece.style.position = 'static';
+        piece.style.width = '100%';
+        piece.style.height = '100%';
+        piece.style.transition = 'none';
+        drag.homeSlot.appendChild(piece);
+      }, 260);
+    }
+
+    function updateProgress() {
+      const pct = Math.round((lockedCount / totalPieces) * 100);
+      progressBar.style.width = `${pct}%`;
+      progressText.textContent = `${lockedCount} / ${totalPieces}`;
+    }
+
+    /* ====================================================================
+       6. HI?U ?NG PHÁO HOA & B?NG CHÚC M?NG HOÀN THÀNH
+       ==================================================================== */
+    const fireworksCanvas = document.getElementById('fireworksCanvas');
+    const fwCtx = fireworksCanvas.getContext('2d');
+    let fwParticles = [];
+    let fwAnimId = null;
+
+    function resizeFw() {
+      fireworksCanvas.width = window.innerWidth;
+      fireworksCanvas.height = window.innerHeight;
+    }
+
+    function startFireworks() {
+      fireworksCanvas.classList.remove('hidden');
+      resizeFw();
+      fwParticles = [];
+      const colors = ['#EF4444', '#10B981', '#F59E0B', '#3B82F6', '#EC4899', '#8B5CF6'];
+
+      for (let burst = 0; burst < 7; burst++) {
+        setTimeout(() => {
+          const cx = window.innerWidth * (0.2 + Math.random() * 0.6);
+          const cy = window.innerHeight * (0.2 + Math.random() * 0.45);
+          for (let i = 0; i < 45; i++) {
+            const angle = (Math.PI * 2 / 45) * i;
+            const speed = 2.5 + Math.random() * 6;
+            fwParticles.push({
+              x: cx, y: cy,
+              vx: Math.cos(angle) * speed,
+              vy: Math.sin(angle) * speed,
+              color: colors[Math.floor(Math.random() * colors.length)],
+              alpha: 1,
+              size: 4 + Math.random() * 4,
+              decay: 0.012 + Math.random() * 0.014
+            });
+          }
+        }, burst * 200);
+      }
+
+      function loop() {
+        fwCtx.clearRect(0, 0, fireworksCanvas.width, fireworksCanvas.height);
+        for (let i = fwParticles.length - 1; i >= 0; i--) {
+          const p = fwParticles[i];
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vy += 0.07;
+          p.alpha -= p.decay;
+          if (p.alpha <= 0) {
+            fwParticles.splice(i, 1);
+            continue;
+          }
+          fwCtx.save();
+          fwCtx.globalAlpha = p.alpha;
+          fwCtx.fillStyle = p.color;
+          fwCtx.beginPath();
+          fwCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          fwCtx.fill();
+          fwCtx.restore();
+        }
+        if (fwParticles.length > 0) {
+          fwAnimId = requestAnimationFrame(loop);
+        } else {
+          fireworksCanvas.classList.add('hidden');
+        }
+      }
+      if (fwAnimId) cancelAnimationFrame(fwAnimId);
+      fwAnimId = requestAnimationFrame(loop);
+    }
+
+    function triggerVictory() {
+      setTimeout(() => {
+        audio.playVictory();
+        startFireworks();
+
+        winModal.classList.remove('hidden');
+        setTimeout(() => {
+          winModal.classList.remove('opacity-0');
+        }, 20);
+      }, 250);
+    }
+
+    /* ====================================================================
+       7. CÁC NÚT ÐI?U KHI?N & S? KI?N
+       ==================================================================== */
+    // Toàn màn hình
+    btnFullscreen.addEventListener('click', () => {
+      audio.init();
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().then(() => {
+          fsIcon.textContent = '? Thu Nh?';
+          setTimeout(updateResponsiveLayout, 100);
+        }).catch(() => {});
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen().then(() => {
+            fsIcon.textContent = '? Toàn Màn Hình';
+            setTimeout(updateResponsiveLayout, 100);
+          });
+        }
+      }
+    });
+
+    document.addEventListener('fullscreenchange', () => {
+      fsIcon.textContent = document.fullscreenElement ? '? Thu Nh?' : '? Toàn Màn Hình';
+      setTimeout(updateResponsiveLayout, 100);
+    });
+
+    // B?t/t?t nh?c n?n sôi d?ng
+    btnBgmToggle.addEventListener('click', () => {
+      audio.init();
+      audio.bgmEnabled = !audio.bgmEnabled;
+      if (audio.bgmEnabled) {
+        audio.startBgm();
+        bgmIcon.textContent = '?? Nh?c: B?t';
+        btnBgmToggle.classList.remove('opacity-60');
+      } else {
+        audio.stopBgm();
+        bgmIcon.textContent = '?? Nh?c: T?t';
+        btnBgmToggle.classList.add('opacity-60');
+      }
+    });
+
+    // B?t/t?t âm thanh hi?u ?ng
+    btnSoundToggle.addEventListener('click', () => {
+      audio.init();
+      audio.fxEnabled = !audio.fxEnabled;
+      soundIcon.textContent = audio.fxEnabled ? '??' : '??';
+      btnSoundToggle.classList.toggle('opacity-60', !audio.fxEnabled);
+    });
+
+    // T?i ?nh m?i t? máy tính
+    imageInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const customImg = new Image();
+        customImg.onload = () => {
+          masterCanvas.width = 1280;
+          masterCanvas.height = 720;
+          mCtx.clearRect(0, 0, masterCanvas.width, masterCanvas.height);
+          mCtx.drawImage(customImg, 0, 0, masterCanvas.width, masterCanvas.height);
+          setupGame();
+        };
+        customImg.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+      e.target.value = '';
+    });
+
+    gridModeSelect.addEventListener('change', () => {
+      audio.init();
+      setupGame();
+    });
+
+    btnRestart.addEventListener('click', () => {
+      audio.init();
+      setupGame();
+    });
+
+    btnPlayAgain.addEventListener('click', () => {
+      audio.init();
+      setupGame();
+    });
+
+    // Kh?i t?o ngay khi t?i xong trang
+    window.addEventListener('DOMContentLoaded', () => {
+      setupGame();
+    });
+  </script>
+</body>
+</html>
